@@ -2,6 +2,10 @@ var mymap = L.map('mapid').setView([51.283743, 1.079048], 11);
 
 var markerList = [];
 var sensor_details = [];
+var testModeSensorValues = [];
+var testModeFloodWarnings = [];
+
+var testMode = false;
   
 L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
 attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
@@ -43,17 +47,15 @@ $.post( "http://localhost:3000/GetSensorDetails", function( data )
 
     $.each(sensor_details, function(index, value)
     {
-        var floodWarningUrl = "https://environment.data.gov.uk/flood-monitoring/id/floods?lat=" + value.latitude + "&long=" + value.longitude + "&dist=1"
-
         if(value.MQTT == "True")
         {
-            $.post("http://localhost:3000/GetMostRecentFloodWarningMQTT", function(data)
+            $.post("http://localhost:3000/GetMostRecentFloodWarningMQTT", {sensor_id: value.sensor_id, test_mode: testMode}, function(data)
             {
                 if(data != null)
                 {
                     var marker = L.marker([value.latitude, value.longitude]);
 
-                    if(data.severity_level == 0)
+                    if(data.severity_level == "No concerns")
                     {
                         var marker = L.marker([value.latitude, value.longitude], {icon: noFloodWarningIcon});
                     }else
@@ -69,6 +71,8 @@ $.post( "http://localhost:3000/GetSensorDetails", function( data )
             });
         }else
         {
+            var floodWarningUrl = "https://environment.data.gov.uk/flood-monitoring/id/floods?lat=" + value.latitude + "&long=" + value.longitude + "&dist=1"
+
             $.get(floodWarningUrl, function(data)
             {
                 var marker = L.marker([value.latitude, value.longitude]);
@@ -88,6 +92,10 @@ $.post( "http://localhost:3000/GetSensorDetails", function( data )
             });
         }
     });
+
+    setInterval(function() {
+        refreshFloodWarnings();
+    }, 15 * 60 * 1000); //15 minutes
 });
 
 //MARKER CLICK HANDLING
@@ -116,11 +124,11 @@ function onMarkerClick(e)
     if(isMQTT == true)
     {
         //call backend for db readings
-        $.post("http://localhost:3000/GetCurrentValueMQTT", { sensor_id: sensor_id}, function(data)
+        $.post("http://localhost:3000/GetCurrentValueMQTT", { sensor_id: sensor_id, test_mode: testMode}, function(data)
         {
             var value_mm = data.value_mm;
 
-            $.post("http://localhost:3000/GetLast24HoursOfDataMQTT", {sensor_id: sensor_id}, function(data)
+            $.post("http://localhost:3000/GetLast24HoursOfDataMQTT", {sensor_id: sensor_id, test_mode: testMode}, function(data)
             {
                 /*{
                     "ID": 1,
@@ -155,8 +163,6 @@ function onMarkerClick(e)
                   };
                   
                   Plotly.newPlot(sensor_id_graph_id, datag, layout);
-
-
             });
         });
     }else
@@ -213,3 +219,159 @@ function onMarkerClick(e)
         });
     }
 }
+
+function toggleFloodWarningTestMode(sensor_id, warning)
+{
+    var MQTT = false;
+    var marker = null;
+
+    $.each(sensor_details, function(index, value)
+    {
+        if(value.sensor_id == sensor_id)
+        {
+            if(value.MQTT == "True")
+            {
+                //find corresponding marker
+                $.each(markerList, function(index2, value2)
+                {
+                    if(value.latitude == value2.getLatLng().lat)
+                    {
+                        marker = value2;
+
+                        if(warning == 0)
+                        {
+                            marker.setIcon(noFloodWarningIcon);
+                        }else
+                        {
+                            marker.setIcon(floodWarningIcon);
+                        }
+                        
+                    }
+                });
+            }
+        }
+    });
+
+
+}
+
+function addTestMQTTData(sensor_id, value_mm, datetimeIso)
+{
+    $.each(sensor_details, function(i, v)
+    {
+        if(sensor_id == v.sensor_id)
+        {
+            if(moment(datetimeIso).isValid() == false)
+            {
+                alert("Date time string is not valid");
+            }else
+            {
+                $.post('http://localhost:3000/AddTestModeMQTTData', {sensor_id: sensor_id, value_mm: value_mm, datetime: moment(datetimeIso)}, function(data)
+                {
+                    refreshFloodWarnings();
+                });
+            }
+        }
+    });
+        //updateFloodWarnings
+}
+
+function refreshFloodWarnings()
+{
+    $.each(sensor_details, function(i, v)
+    {
+        $.each(markerList, function(ii, vv)
+        {
+            if(v.latitude == vv.getLatLng().lat)
+            {
+                var marker = vv;
+
+                if(v.MQTT == "True")
+                {
+                    $.post("http://localhost:3000/GetMostRecentFloodWarningMQTT", {sensor_id: v.sensor_id, test_mode: testMode} ,function(data)
+                    {
+                        if(data != null)
+                        {
+                            if(data.severity_level == "No concerns")
+                            {
+                                marker.setIcon(noFloodWarningIcon);
+                            }else
+                            {
+                                marker.setIcon(floodWarningIcon);
+                            }
+                        }
+                    });
+                }else
+                {
+                    if(!testMode)
+                    {
+                        var floodWarningUrl = "https://environment.data.gov.uk/flood-monitoring/id/floods?lat=" + value.latitude + "&long=" + value.longitude + "&dist=1"
+
+                        $.get(floodWarningUrl, function(data)
+                        {
+                            if(data.items.length == 0)
+                            {
+                                marker.setIcon(noFloodWarningIcon);
+                            }else
+                            {
+                                marker.setIcon(floodWarningIcon);
+                            }
+                        });
+                    }
+                }
+            }
+        });
+    });   
+}
+
+//first argument: method name
+//second argument: parameters
+function parseConsole(command)
+{
+    var arguments = command.split(" ");
+
+    switch(arguments[0])
+    {
+        case 'refreshFloodWarnings':
+            refreshFloodWarnings();
+            break;
+
+        case 'addTestMQTTData':
+            var sensor_id = arguments[1];
+            var value_mm = arguments[2];
+            var datetime = arguments[3];
+
+            addTestMQTTData(sensor_id, value_mm, datetime);
+            break;
+        
+        case 'toggleFloodWarningTestMode':
+            var sensor_id = arguments[1];
+            var warning = arguments[2];
+
+            toggleFloodWarningTestMode(sensor_id, warning)
+            break;
+    }
+}
+
+
+function KeyPress(e) {
+    var evtobj = window.event? event : e
+
+    if (evtobj.keyCode == 90 && evtobj.ctrlKey)
+    {
+        testMode = !testMode;
+        var message = testMode ? "Test mode is now enabled" : "Test mode is disabled"
+        
+        alert(message);
+    }
+
+    if (evtobj.keyCode == 73 && evtobj.ctrlKey)
+    {
+        
+    }
+}
+
+$(document).keydown(function(e)
+{ 
+    KeyPress(e);
+});
