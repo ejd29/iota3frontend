@@ -28,17 +28,6 @@ var noFloodWarningIcon = L.icon(
             popupAnchor: [-3, -76]
         });
 
-var greenIcon = L.icon({
-    iconUrl: 'leaf-green.png',
-    shadowUrl: 'leaf-shadow.png',
-
-    iconSize:     [38, 95], // size of the icon
-    shadowSize:   [50, 64], // size of the shadow
-    iconAnchor:   [22, 94], // point of the icon which will correspond to marker's location
-    shadowAnchor: [4, 62],  // the same for the shadow
-    popupAnchor:  [-3, -76] // point from which the popup should open relative to the iconAnchor
-});
-
 
 //ONLOAD
 $.post( "http://localhost:3000/GetSensorDetails", function( data ) 
@@ -57,10 +46,10 @@ $.post( "http://localhost:3000/GetSensorDetails", function( data )
 
                     if(data.severity_level == "No concerns")
                     {
-                        var marker = L.marker([value.latitude, value.longitude], {icon: noFloodWarningIcon});
+                        marker = L.marker([value.latitude, value.longitude], {icon: noFloodWarningIcon});
                     }else
                     {
-                        var marker = L.marker([value.latitude, value.longitude], {icon: floodWarningIcon});
+                        marker = L.marker([value.latitude, value.longitude], {icon: floodWarningIcon});
                     }
 
                     marker.on("click", onMarkerClick);
@@ -140,6 +129,10 @@ function onMarkerClick(e)
                 var last24HoursDataMQTT = data;
                 var dateTimeValues = [];
                 var waterLevelValues = [];
+
+                last24HoursDataMQTT.sort(function(a,b){
+                    return new Date(b.dateTime) - new Date(a.dateTime);
+                  });
 
                 $.each(last24HoursDataMQTT, function(index, value)
                 {
@@ -229,7 +222,7 @@ function toggleFloodWarningTestMode(sensor_id, warning)
     {
         if(value.sensor_id == sensor_id)
         {
-            if(value.MQTT == "True")
+            if(value.MQTT == "False")
             {
                 //find corresponding marker
                 $.each(markerList, function(index2, value2)
@@ -245,7 +238,6 @@ function toggleFloodWarningTestMode(sensor_id, warning)
                         {
                             marker.setIcon(floodWarningIcon);
                         }
-                        
                     }
                 });
             }
@@ -266,7 +258,9 @@ function addTestMQTTData(sensor_id, value_mm, datetimeIso)
                 alert("Date time string is not valid");
             }else
             {
-                $.post('http://localhost:3000/AddTestModeMQTTData', {sensor_id: sensor_id, value_mm: value_mm, datetime: moment(datetimeIso)}, function(data)
+                var datetime = moment(datetimeIso).format("MM/D/YYYY, h:m A");
+
+                $.post('http://localhost:3000/AddTestModeMQTTData', {sensor_id: sensor_id, value_mm: value_mm, datetime: datetime}, function(data)
                 {
                     refreshFloodWarnings();
                 });
@@ -299,6 +293,8 @@ function refreshFloodWarnings()
                             {
                                 marker.setIcon(floodWarningIcon);
                             }
+
+                            console.log("refreshed sensor: " + v.sensor_id);
                         }
                     });
                 }else
@@ -316,6 +312,8 @@ function refreshFloodWarnings()
                             {
                                 marker.setIcon(floodWarningIcon);
                             }
+
+                            console.log("refreshed sensor: " + v.sensor_id);
                         });
                     }
                 }
@@ -330,13 +328,13 @@ function parseConsole(command)
 {
     var arguments = command.split(" ");
 
-    switch(arguments[0])
+    switch(arguments[0].toLowerCase())
     {
-        case 'refreshFloodWarnings':
+        case 'refreshfloodwarnings':
             refreshFloodWarnings();
             break;
 
-        case 'addTestMQTTData':
+        case 'addmqttdata':
             var sensor_id = arguments[1];
             var value_mm = arguments[2];
             var datetime = arguments[3];
@@ -344,7 +342,7 @@ function parseConsole(command)
             addTestMQTTData(sensor_id, value_mm, datetime);
             break;
         
-        case 'toggleFloodWarningTestMode':
+        case 'togglefloodwarning':
             var sensor_id = arguments[1];
             var warning = arguments[2];
 
@@ -353,8 +351,15 @@ function parseConsole(command)
     }
 }
 
+$("#executeCommand").on("click", function()
+{
+    var commandInput = $("#commandInput").val();
+    $('#exampleModal').modal('hide');
+    parseConsole(commandInput);
+});
 
-function KeyPress(e) {
+function KeyPress(e) 
+{
     var evtobj = window.event? event : e
 
     if (evtobj.keyCode == 90 && evtobj.ctrlKey)
@@ -365,9 +370,9 @@ function KeyPress(e) {
         alert(message);
     }
 
-    if (evtobj.keyCode == 73 && evtobj.ctrlKey)
+    if (evtobj.keyCode == 73 && evtobj.ctrlKey && testMode)
     {
-        
+        $('#exampleModal').modal('show');
     }
 }
 
