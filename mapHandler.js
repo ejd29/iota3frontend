@@ -92,6 +92,7 @@ function onMarkerClick(e)
 {
     var marker = this;
     var sensor_id = null;
+    var sensor_name = null;
     var isMQTT = false;
 
     //find sensor id from latitude 
@@ -100,6 +101,7 @@ function onMarkerClick(e)
         if(marker.getLatLng().lat == value.latitude)
         {
             sensor_id = value.sensor_id;
+            sensor_name = value.sensor_name;
 
             if(value.MQTT == "True")
             {
@@ -131,7 +133,8 @@ function onMarkerClick(e)
                 var waterLevelValues = [];
 
                 last24HoursDataMQTT.sort(function(a,b){
-                    return new Date(b.dateTime) - new Date(a.dateTime);
+                    return moment(a.datetime).toDate() - moment(b.datetime).toDate();
+                    //return new Date(b.dateTime) - new Date(a.dateTime);
                   });
 
                 $.each(last24HoursDataMQTT, function(index, value)
@@ -141,7 +144,6 @@ function onMarkerClick(e)
                 });
 
                 var sensor_id_graph_id = sensor_id + "_graph";
-                marker.bindPopup("Latest sensor reading (mm): " + value_mm + "<div style='width:200px' id='" + sensor_id_graph_id + "'></div>", {maxWidth: "auto"}).openPopup();
 
                 var trace1 = {
                     x: dateTimeValues,
@@ -154,8 +156,18 @@ function onMarkerClick(e)
                   var layout = {
                     width:'200px'
                   };
-                  
-                  Plotly.newPlot(sensor_id_graph_id, datag, layout);
+
+                if(marker.getPopup() != null)
+                {
+                    marker.getPopup().setContent("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm + "<div style='width:200px' id='" + sensor_id_graph_id + "'></div>");
+                    marker.getPopup().openPopup();
+                    Plotly.newPlot(sensor_id_graph_id, datag, layout);
+                }else
+                {
+                    marker.bindPopup("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm + "<div style='width:200px' id='" + sensor_id_graph_id + "'></div>", {maxWidth: "auto"}).openPopup();
+                    Plotly.newPlot(sensor_id_graph_id, datag, layout);
+                }
+                                   
             });
         });
     }else
@@ -191,7 +203,7 @@ function onMarkerClick(e)
                 });
 
                 var sensor_id_graph_id = sensor_id + "_graph";
-                marker.bindPopup("Latest sensor reading (mm): " + value_mm + "<div style='width:200px' id='" + sensor_id_graph_id + "'></div>", {maxWidth: "auto"}).openPopup();
+                marker.bindPopup("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm + "<div style='width:200px' id='" + sensor_id_graph_id + "'></div>", {maxWidth: "auto"}).openPopup();
 
                 var trace1 = {
                     x: dateTimeValues,
@@ -208,7 +220,7 @@ function onMarkerClick(e)
                   Plotly.newPlot(sensor_id_graph_id, datag, layout);
             });
 
-            marker.bindPopup("Latest sensor reading (mm): " + value_mm).openPopup();
+            marker.bindPopup("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm).openPopup();
         });
     }
 }
@@ -267,7 +279,8 @@ function addTestMQTTData(sensor_id, value_mm, datetimeIso)
             }
         }
     });
-        //updateFloodWarnings
+        
+        refreshFloodWarnings();
 }
 
 function refreshFloodWarnings()
@@ -339,6 +352,11 @@ function parseConsole(command)
             var value_mm = arguments[2];
             var datetime = arguments[3];
 
+            if(datetime == "now")
+            {
+                datetime = new Date();
+            }
+
             addTestMQTTData(sensor_id, value_mm, datetime);
             break;
         
@@ -347,6 +365,24 @@ function parseConsole(command)
             var warning = arguments[2];
 
             toggleFloodWarningTestMode(sensor_id, warning)
+            break;
+
+        case 'wipealldummydata':
+            
+            $.post("http://localhost:3000/WipeAllDummyData", function(data)
+            {
+                //de nada
+            });
+
+            break;
+
+        case 'wipealldummyfloodwarnings':
+
+            $.post("http://localhost:3000/WipeAllDummyFloodWarnings", function(data)
+            {
+                //de nada
+            });
+
             break;
     }
 }
@@ -368,6 +404,7 @@ function KeyPress(e)
         var message = testMode ? "Test mode is now enabled" : "Test mode is disabled"
         
         alert(message);
+        refreshFloodWarnings();
     }
 
     if (evtobj.keyCode == 73 && evtobj.ctrlKey && testMode)
