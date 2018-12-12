@@ -17,14 +17,16 @@ accessToken: 'pk.eyJ1IjoiYXA3MjAiLCJhIjoiY2pwZ3pxN3JoMG96ajN3bWRzMzU3cXRnbyJ9.C9
 var noFloodWarningIcon = L.icon(
     {
         iconUrl: 'icons/okflood.png',
-        iconSize: [25, 80],
+        iconSize: [18, 70],
+        iconAnchor: [40,40], 
         popupAnchor: [-3, -76]
     });
 
     var floodWarningIcon = L.icon(
         {
             iconUrl: 'icons/floodwarning.png',
-            iconSize: [25, 80],
+            iconSize: [18, 70],
+            iconAnchor: [40,40], 
             popupAnchor: [-3, -76]
         });
 
@@ -44,12 +46,12 @@ $.post( "http://localhost:3000/GetSensorDetails", function( data )
                 {
                     var marker = L.marker([value.latitude, value.longitude]);
 
-                    if(data.severity_level == "No concerns")
-                    {
-                        marker = L.marker([value.latitude, value.longitude], {icon: noFloodWarningIcon});
-                    }else
+                    if(data.severity_level >= 1 && data.severity_level <= 3)
                     {
                         marker = L.marker([value.latitude, value.longitude], {icon: floodWarningIcon});
+                    }else
+                    {
+                        marker = L.marker([value.latitude, value.longitude], {icon: noFloodWarningIcon});
                     }
 
                     marker.on("click", onMarkerClick);
@@ -159,17 +161,33 @@ function onMarkerClick(e)
                     width:'200px'
                   };
 
-                if(marker.getPopup() != null)
-                {
-                    marker.getPopup().setContent("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm + "<div style='width:200px' id='" + sensor_id_graph_id + "'></div>");
-                    marker.getPopup().openPopup();
-                    Plotly.newPlot(sensor_id_graph_id, datag, layout);
-                }else
-                {
-                    marker.bindPopup("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm + "<div style='width:200px' id='" + sensor_id_graph_id + "'></div>", {maxWidth: "auto"}).openPopup();
-                    Plotly.newPlot(sensor_id_graph_id, datag, layout);
-                }
-                                   
+                  $.post("http://localhost:3000/MqttSensorCheck", {sensor_id: sensor_id}, function(data)
+                  {
+                    if(marker.getPopup() != null)
+                    {
+                        if(data.sensorDown)
+                        {
+                            marker.getPopup().setContent("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm + "<br> Sensor Online Status: <font color='red'> Offline" + "</font><div style='width:200px' id='" + sensor_id_graph_id + "'></div>");
+                        }else
+                        {
+                            marker.getPopup().setContent("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm + "<br> Sensor Online Status: <font color='green'> Online" + "</font><div style='width:200px' id='" + sensor_id_graph_id + "'></div>");
+                        }
+
+                        marker.getPopup().openPopup();
+                        Plotly.newPlot(sensor_id_graph_id, datag, layout);
+                    }else
+                    {
+                        if(data.sensorDown)
+                        {
+                            marker.bindPopup("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm + "<br> Sensor Online Status: <font color='red'> Offline" + "</font><div style='width:200px' id='" + sensor_id_graph_id + "'></div>", {maxWidth: "auto"}).openPopup();
+                        }else
+                        {
+                            marker.bindPopup("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm + "<br> Sensor Online Status: <font color='green'> Online" + "</font><div style='width:200px' id='" + sensor_id_graph_id + "'></div>", {maxWidth: "auto"}).openPopup();
+                        }
+
+                        Plotly.newPlot(sensor_id_graph_id, datag, layout);
+                    }
+                  });                
             });
         });
     }else
@@ -179,8 +197,14 @@ function onMarkerClick(e)
 
         $.get(query_url, function(data)
         {
-            var value_m = data.items[0].value;
-            value_mm = value_m * 1000;
+            var value_m = -1;
+            var value_mm = -1;
+
+            if(data.items.length > 0)
+            {
+                value_m = data.items[0].value;
+                value_mm = value_m * 1000;
+            }
 
             var today = new Date();
             var yesterday = new Date(today);
@@ -190,7 +214,13 @@ function onMarkerClick(e)
 
             $.get(query_url, function(data)
             {
-                var last24HoursDataGov = data.items;
+                var last24HoursDataGov = [];
+
+                if(data.items != null)
+                {
+                    last24HoursDataGov = data.items;
+                }
+                
                 var dateTimeValues = [];
                 var waterLevelValues = [];
 
@@ -204,9 +234,6 @@ function onMarkerClick(e)
                     waterLevelValues[index] = value.value*1000;
                 });
 
-                var sensor_id_graph_id = sensor_id + "_graph";
-                marker.bindPopup("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm + "<div style='width:200px' id='" + sensor_id_graph_id + "'></div>", {maxWidth: "auto"}).openPopup();
-
                 var trace1 = {
                     x: dateTimeValues,
                     y: waterLevelValues,
@@ -218,8 +245,18 @@ function onMarkerClick(e)
                   var layout = {
                     width:'200px'
                   };
-                  
-                  Plotly.newPlot(sensor_id_graph_id, datag, layout);
+
+                var sensor_id_graph_id = sensor_id + "_graph";
+
+                if(last24HoursDataGov.length > 0)
+                {
+                    marker.bindPopup("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm + "<br> Sensor Online Status: <font color='green'> Online </font>" + "<div style='width:200px' id='" + sensor_id_graph_id + "'></div>", {maxWidth: "auto"}).openPopup();
+                }else
+                {
+                    marker.bindPopup("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm + "<br> Sensor Online Status: <font color='red'> Offline </font>" + "<div style='width:200px' id='" + sensor_id_graph_id + "'></div>", {maxWidth: "auto"}).openPopup();
+                }
+
+                Plotly.newPlot(sensor_id_graph_id, datag, layout);
             });
 
             marker.bindPopup("Sensor Name: " + sensor_name + "<br>Latest sensor reading (mm): " + value_mm).openPopup();
@@ -379,9 +416,7 @@ function parseConsole(command)
             {
                 //de nada
             });
-            break;
 
-        case 'wipealldummyfloodwarnings':
             $.post("http://localhost:3000/WipeAllDummyFloodWarnings", function(data)
             {
                 //de nada
