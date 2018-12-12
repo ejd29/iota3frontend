@@ -23,26 +23,71 @@
 
       #mapid { height: 700px; width: 850px;}
 
+      body {
+
+            background-color: #3366ff;
+            padding: 0;
+            height: 170px;
+            font-family: Arial;
+
+            }
+
+            h2 {
+
+            text-align: center;
+            font-family: "Arial";
+            font-size:  30px;
+            color: white;
+
+            }
+
+            h3 {
+
+            text-align: center;
+            font-family: "Arial";
+            font-size:  20px;
+            color: white;
+
+            }
+
+            .footer {
+
+     text-align: center;
+     font-family: Arial;
+     font-size: 12px;
+     border-top: 3px solid white;
+     padding: 5px;
+     margin: 10px 0 auto 0;
+
+     }
+
+     p {
+
+     font-family: "Arial";
+     text-align :center;
+
+     }
     </style>
-    
+
   </head>
   <body>
 
-      
+
 
       <div class="container">
-        <div class="row">
             <h2>Flood Alerts Canterbury</h2>
-        </div>
+        <br>
+        <p>This website enables you to check flood levels near you but also the severity of the flood and whether you need to be concerned or not.
+On our interactive map, <font color="green">green</font> pointers <img style="display: inline;" src="./icons/okflood.png" width="23px" height="23px"> represent sensor values on the Great Stour that are deemed "OK". <font color="red">Red</font> pointers <img style="display: inline;" src="./icons/floodwarning.png" width="23px" height="23px"> represent that the sensors are picking up some form of flood alert.</p><br>
           <div class="row">
             <div class="col-10">
                 <div id="mapid"></div>
             </div>
             <div class="col-2">
-              <h3 style="border: 1px solid black;">Your Flood Alerts</h3>
+              <h3>Your Flood Alerts</h3><br>
               <span>
-                <input type="text" id="postcodeSubscribe" text="Enter your postcode">
-                <button type="button" class="btn btn-primary" id="subscribe">Subscribe</button>
+                <input type="text" id="postcodeSubscribe" text="Enter your postcode"><br><br>
+                <button type="button" class="btn btn-primary" id="subscribe">Subscribe</button><br><br>
               </span>
               <p id="floodAlertMessage">You have not yet subscribed to any flood alerts in your area</p>
             </div>
@@ -69,7 +114,13 @@
       </div>
     </div>
   </div>
-
+  <div class = "footer">
+        <footer>
+          Created & Maintained by: Adam Preston, Euel Domingo, Marcus Robinson-Bailey<br><br>
+          Contact Us: <a href="ap720@kent.ac.uk,ejd29@kent.ac.uk,mer25@kent.ac.uk">
+          ap720@kent.ac.uk,ejd29@kent.ac.uk,mer25@kent.ac.uk</a>
+        </footer>
+        </div>
   </body>
 
   <script src="mapHandler.js"></script>

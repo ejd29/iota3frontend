@@ -158,7 +158,7 @@ function onMarkerClick(e)
                   var datag = [trace1];
 
                   var layout = {
-                    width:'200px'
+                    width:'100px'
                   };
 
                   $.post("http://localhost:3000/MqttSensorCheck", {sensor_id: sensor_id}, function(data)
