@@ -21,16 +21,33 @@
     <meta charset="utf-8">
     <style>
 
-      #mapid { height: 1000px; }
+      #mapid { height: 700px; width: 850px;}
 
     </style>
-
-    <h2>Flood Alerts Canterbury</h2>
     
   </head>
   <body>
 
-      <div id="mapid"></div>
+      
+
+      <div class="container">
+        <div class="row">
+            <h2>Flood Alerts Canterbury</h2>
+        </div>
+          <div class="row">
+            <div class="col-10">
+                <div id="mapid"></div>
+            </div>
+            <div class="col-2">
+              <h3 style="border: 1px solid black;">Your Flood Alerts</h3>
+              <span>
+                <input type="text" id="postcodeSubscribe" text="Enter your postcode">
+                <button type="button" class="btn btn-primary" id="subscribe">Subscribe</button>
+              </span>
+              <p id="floodAlertMessage">You have not yet subscribed to any flood alerts in your area</p>
+            </div>
+          </div>
+        </div>
 
       <!-- Modal -->
 <div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">

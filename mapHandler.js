@@ -64,14 +64,14 @@ $.post( "http://localhost:3000/GetSensorDetails", function( data )
 
             $.get(floodWarningUrl, function(data)
             {
-                var marker = L.marker([value.latitude, value.longitude]);
+                var marker = L.marker([value.latitude, value.longitude], {icon: noFloodWarningIcon});
 
-                if(data.items.length == 0)
+                if(data.severity_level != undefined)
                 {
-                    marker = L.marker([value.latitude, value.longitude], {icon: noFloodWarningIcon});
-                }else
-                {
-                    marker = L.marker([value.latitude, value.longitude], {icon: floodWarningIcon});
+                    if(data.severity_level >= 1 && data.severity_level <= 3)
+                    {
+                        marker = L.marker([value.latitude, value.longitude], {icon: floodWarningIcon});
+                    }
                 }
                 
                 marker.on("click", onMarkerClick);
@@ -81,6 +81,8 @@ $.post( "http://localhost:3000/GetSensorDetails", function( data )
             });
         }
     });
+
+    checkUserSubscription();
 
     setInterval(function() {
         refreshFloodWarnings();
@@ -225,7 +227,7 @@ function onMarkerClick(e)
     }
 }
 
-function toggleFloodWarningTestMode(sensor_id, warning)
+function triggerFloodWarningTestMode(sensor_id)
 {
     var MQTT = false;
     var marker = null;
@@ -243,13 +245,16 @@ function toggleFloodWarningTestMode(sensor_id, warning)
                     {
                         marker = value2;
 
-                        if(warning == 0)
+                        $.get("http://localhost:3000/FakeGovFloodWarning", function(data)
                         {
-                            marker.setIcon(noFloodWarningIcon);
-                        }else
-                        {
-                            marker.setIcon(floodWarningIcon);
-                        }
+                            if(data.severity_level >= 1 && data.severity_level <= 3)
+                            {
+                                marker.setIcon(floodWarningIcon);
+                            }else
+                            {
+                                marker.setIcon(noFloodWarningIcon);
+                            }
+                        });
                     }
                 });
             }
@@ -299,12 +304,12 @@ function refreshFloodWarnings()
                     {
                         if(data != null)
                         {
-                            if(data.severity_level == "No concerns")
-                            {
-                                marker.setIcon(noFloodWarningIcon);
-                            }else
+                            if(data.severity_level >= 1 && data.severity_level <= 3)
                             {
                                 marker.setIcon(floodWarningIcon);
+                            }else
+                            {
+                                marker.setIcon(noFloodWarningIcon);
                             }
 
                             console.log("refreshed sensor: " + v.sensor_id);
@@ -314,19 +319,22 @@ function refreshFloodWarnings()
                 {
                     if(!testMode)
                     {
-                        var floodWarningUrl = "https://environment.data.gov.uk/flood-monitoring/id/floods?lat=" + value.latitude + "&long=" + value.longitude + "&dist=1"
+                        var floodWarningUrl = "https://environment.data.gov.uk/flood-monitoring/id/floods?lat=" + v.latitude + "&long=" + v.longitude + "&dist=1"
 
                         $.get(floodWarningUrl, function(data)
                         {
-                            if(data.items.length == 0)
+                            if(data!=null)
                             {
-                                marker.setIcon(noFloodWarningIcon);
-                            }else
-                            {
-                                marker.setIcon(floodWarningIcon);
-                            }
+                                if(data.severity_level >= 1 && data.severity_level <= 3)
+                                {
+                                    marker.setIcon(floodWarningIcon);
+                                }else
+                                {
+                                    marker.setIcon(noFloodWarningIcon);
+                                }
 
                             console.log("refreshed sensor: " + v.sensor_id);
+                            }
                         });
                     }
                 }
@@ -334,6 +342,7 @@ function refreshFloodWarnings()
         });
     });   
 }
+
 
 //first argument: method name
 //second argument: parameters
@@ -360,38 +369,86 @@ function parseConsole(command)
             addTestMQTTData(sensor_id, value_mm, datetime);
             break;
         
-        case 'togglefloodwarning':
+        case 'triggergovfloodwarning':
             var sensor_id = arguments[1];
-            var warning = arguments[2];
-
-            toggleFloodWarningTestMode(sensor_id, warning)
+            triggerFloodWarningTestMode(sensor_id)
             break;
 
         case 'wipealldummydata':
-            
             $.post("http://localhost:3000/WipeAllDummyData", function(data)
             {
                 //de nada
             });
-
             break;
 
         case 'wipealldummyfloodwarnings':
-
             $.post("http://localhost:3000/WipeAllDummyFloodWarnings", function(data)
             {
                 //de nada
             });
-
             break;
+
+        default:
+            alert("invalid command");
     }
 }
+
+function checkUserSubscription()
+{
+    $.post("http://localhost:3000/CheckUserSubscription", function(data)
+    {
+        if(data.latitude > 0 && data.longitude > 0)
+        {
+            //call flood alert
+            var floodWarningUrl = "https://environment.data.gov.uk/flood-monitoring/id/floods?lat=" + data.latitude + "&long=" + data.longitude + "&dist=5";
+
+            $.get(floodWarningUrl, function(data)
+            {
+                if(data.items.length == 0)
+                {
+                    $("#floodAlertMessage").text("There are no flood alerts in your area");
+                }else
+                {
+                    $("#floodAlertMessage").text("There are flood alerts within a 5 mile radius of your postcode");
+                }
+            });
+        }
+    });
+}
+
+function addUserSubscription(postCode)
+{
+    //use api to find lat long for postcode
+    var query_url = "http://api.postcodes.io/postcodes/" + postCode;
+
+    $.get(query_url, function(data)
+    {
+        var latitude = data.result.latitude;
+        var longitude = data.result.longitude;
+
+        $.post("http://localhost:3000/SubscribeUserLocation", {latitude: latitude, longitude: longitude}, function(data)
+        {
+            if(data == "200")
+            {
+                checkUserSubscription();
+            }
+        });
+    });
+}
+
+//Button Handlers
 
 $("#executeCommand").on("click", function()
 {
     var commandInput = $("#commandInput").val();
     $('#exampleModal').modal('hide');
     parseConsole(commandInput);
+});
+
+$("#subscribe").on("click", function()
+{
+    var subscribeInput = $("#postcodeSubscribe").val();
+    addUserSubscription(subscribeInput);
 });
 
 function KeyPress(e) 
